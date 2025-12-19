@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"jsonrepair"
+	jsonrepair "github.com/wokito/jsonrepair-go"
 )
 
 func main() {

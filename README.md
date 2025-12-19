@@ -1,42 +1,47 @@
 # jsonrepair-go
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/wujinduo/jsonrepair-go.svg)](https://pkg.go.dev/github.com/wujinduo/jsonrepair-go)
-[![Go Report Card](https://goreportcard.com/badge/github.com/wujinduo/jsonrepair-go)](https://goreportcard.com/report/github.com/wujinduo/jsonrepair-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/wokito/jsonrepair-go.svg)](https://pkg.go.dev/github.com/wokito/jsonrepair-go)
+[![Go Report Card](https://goreportcard.com/badge/github.com/wokito/jsonrepair-go)](https://goreportcard.com/report/github.com/wokito/jsonrepair-go)
 [![License: ISC](https://img.shields.io/badge/License-ISC-blue.svg)](https://opensource.org/licenses/ISC)
 
-Go 语言实现的 JSON 修复库，用于修复无效的 JSON 文档。这是 [jsonrepair](https://github.com/josdejong/jsonrepair) (TypeScript/JavaScript) 的 Go 移植版本。
+Repair invalid JSON documents.
 
-## 功能特性
+This is a Go port of the original [jsonrepair](https://github.com/josdejong/jsonrepair) library by Jos de Jong.
 
-jsonrepair 可以修复以下 JSON 问题：
+Read the background article ["How to fix JSON and validate it with ease"](https://jsoneditoronline.org/indepth/parse/fix-json/)
 
-- ✅ 为键名添加缺失的引号
-- ✅ 添加缺失的转义字符
-- ✅ 添加缺失的逗号
-- ✅ 添加缺失的闭合括号
-- ✅ 修复截断的 JSON
-- ✅ 将单引号替换为双引号
-- ✅ 替换特殊引号字符（如中文引号 `""`、`''`）
-- ✅ 替换特殊空白字符
-- ✅ 替换 Python 常量（`None`、`True`、`False`）
-- ✅ 移除尾部逗号
-- ✅ 移除注释（`/* */` 和 `//`）
-- ✅ 移除 Markdown 代码块标记
-- ✅ 移除数组和对象中的省略号 `...`
-- ✅ 移除 JSONP 包装
-- ✅ 处理 MongoDB 数据类型（`ObjectId`、`NumberLong` 等）
-- ✅ 字符串连接（`"hello" + " world"`）
-- ✅ 将换行分隔的 JSON 转换为有效的 JSON 数组
+The following issues can be fixed:
 
-## 安装
+- Add missing quotes around keys
+- Add missing escape characters
+- Add missing commas
+- Add missing closing brackets
+- Repair truncated JSON
+- Replace single quotes with double quotes
+- Replace special quote characters like `"..."` with regular double quotes
+- Replace special white space characters with regular spaces
+- Replace Python constants `None`, `True`, and `False` with `null`, `true`, and `false`
+- Strip trailing commas
+- Strip comments like `/* ... */` and `// ...`
+- Strip fenced code blocks like ` ```json ` and ` ``` `
+- Strip ellipsis in arrays and objects like `[1, 2, 3, ...]`
+- Strip JSONP notation like `callback({ ... })`
+- Strip escape characters from an escaped string like `{\"stringified\": \"content\"}`
+- Strip MongoDB data types like `NumberLong(2)` and `ISODate("2012-12-19T06:01:17.171Z")`
+- Concatenate strings like `"long text" + "more text on next line"`
+- Turn newline delimited JSON into a valid JSON array, for example:
+    ```
+    { "id": 1, "name": "John" }
+    { "id": 2, "name": "Sarah" }
+    ```
+
+## Install
 
 ```bash
-go get github.com/wujinduo/jsonrepair-go
+go get github.com/wokito/jsonrepair-go
 ```
 
-## 使用方法
-
-### 作为库使用
+## Use
 
 ```go
 package main
@@ -45,104 +50,32 @@ import (
     "fmt"
     "log"
 
-    "github.com/wujinduo/jsonrepair-go"
+    jsonrepair "github.com/wokito/jsonrepair-go"
 )
 
 func main() {
-    // 修复缺少引号的键
-    input := `{name: "John", age: 30}`
-    result, err := jsonrepair.JSONRepair(input)
+    // The following is invalid JSON: it consists of JSON contents copied from
+    // a JavaScript code base, where the keys are missing double quotes,
+    // and strings are using single quotes:
+    json := "{name: 'John'}"
+
+    repaired, err := jsonrepair.JSONRepair(json)
     if err != nil {
         log.Fatal(err)
     }
-    fmt.Println(result) // {"name": "John", "age": 30}
 
-    // 使用 MustJSONRepair（失败时会 panic）
-    result = jsonrepair.MustJSONRepair(`[1, 2, 3,]`)
-    fmt.Println(result) // [1, 2, 3]
+    fmt.Println(repaired) // {"name": "John"}
 }
 ```
 
-### 作为命令行工具使用
+### MustJSONRepair
 
-```bash
-# 从标准输入读取
-echo "{name: 'John'}" | jsonrepair
-
-# 从文件读取
-jsonrepair input.json
-
-# 输出到文件
-jsonrepair input.json -o output.json
-```
-
-## 示例
-
-### 修复缺少引号的键
+Use `MustJSONRepair` when you want to panic on error:
 
 ```go
-input := `{name: "John", age: 30}`
-result, _ := jsonrepair.JSONRepair(input)
-// 输出: {"name": "John", "age": 30}
-```
-
-### 修复单引号
-
-```go
-input := `{'name': 'Alice'}`
-result, _ := jsonrepair.JSONRepair(input)
-// 输出: {"name": "Alice"}
-```
-
-### 移除尾部逗号
-
-```go
-input := `{"items": [1, 2, 3,]}`
-result, _ := jsonrepair.JSONRepair(input)
-// 输出: {"items": [1, 2, 3]}
-```
-
-### 移除注释
-
-```go
-input := `{
-    "name": "Bob", // 用户名
-    "active": true /* 是否激活 */
-}`
-result, _ := jsonrepair.JSONRepair(input)
-// 输出: {"name": "Bob", "active": true}
-```
-
-### 修复截断的 JSON
-
-```go
-input := `{"message": "hello`
-result, _ := jsonrepair.JSONRepair(input)
-// 输出: {"message": "hello"}
-```
-
-### 修复 Python 常量
-
-```go
-input := `{"enabled": True, "data": None}`
-result, _ := jsonrepair.JSONRepair(input)
-// 输出: {"enabled": true, "data": null}
-```
-
-### 字符串连接
-
-```go
-input := `"hello" + " world"`
-result, _ := jsonrepair.JSONRepair(input)
-// 输出: "hello world"
-```
-
-### 处理 MongoDB 数据类型
-
-```go
-input := `{"_id": ObjectId("123"), "count": NumberLong("456")}`
-result, _ := jsonrepair.JSONRepair(input)
-// 输出: {"_id": "123", "count": "456"}
+// Will panic if repair fails
+result := jsonrepair.MustJSONRepair("[1, 2, 3,]")
+fmt.Println(result) // [1, 2, 3]
 ```
 
 ## API
@@ -153,7 +86,7 @@ result, _ := jsonrepair.JSONRepair(input)
 func JSONRepair(text string) (string, error)
 ```
 
-修复无效的 JSON 字符串。如果无法修复，返回错误。
+Repairs a string containing an invalid JSON document. Returns the repaired JSON string, or an error when an issue is encountered which could not be solved.
 
 ### MustJSONRepair
 
@@ -161,32 +94,101 @@ func JSONRepair(text string) (string, error)
 func MustJSONRepair(text string) string
 ```
 
-修复无效的 JSON 字符串。如果无法修复，会 panic。
+Same as `JSONRepair`, but panics instead of returning an error.
 
-## 与原始 TypeScript 版本的差异
+## Examples
 
-本项目是 [josdejong/jsonrepair](https://github.com/josdejong/jsonrepair) 的 Go 移植版本，功能基本一致，但有以下已知差异：
+### Fix missing quotes on keys
 
-| 功能 | TypeScript | Go |
-|------|------------|-----|
-| MongoDB Timestamp | ✅ 支持 | ❌ 不支持 |
-| Triple quotes `'''` | ✅ 修复 | ❌ 报错 |
-| 正则表达式转义 | 双反斜杠 | 单反斜杠 |
+```go
+result, _ := jsonrepair.JSONRepair("{name: 'John'}")
+// Output: {"name": "John"}
+```
 
-## 测试
+### Fix single quotes
+
+```go
+result, _ := jsonrepair.JSONRepair("{'name': 'Alice'}")
+// Output: {"name": "Alice"}
+```
+
+### Fix trailing commas
+
+```go
+result, _ := jsonrepair.JSONRepair("[1, 2, 3,]")
+// Output: [1, 2, 3]
+```
+
+### Strip comments
+
+```go
+result, _ := jsonrepair.JSONRepair(`{
+    "name": "Bob", // comment
+    "active": true /* another comment */
+}`)
+// Output: {"name": "Bob", "active": true}
+```
+
+### Repair truncated JSON
+
+```go
+result, _ := jsonrepair.JSONRepair(`{"message": "hello`)
+// Output: {"message": "hello"}
+```
+
+### Fix Python constants
+
+```go
+result, _ := jsonrepair.JSONRepair(`{"enabled": True, "data": None}`)
+// Output: {"enabled": true, "data": null}
+```
+
+### Concatenate strings
+
+```go
+result, _ := jsonrepair.JSONRepair(`"hello" + " world"`)
+// Output: "hello world"
+```
+
+### Strip MongoDB data types
+
+```go
+result, _ := jsonrepair.JSONRepair(`{"_id": ObjectId("123"), "count": NumberLong("456")}`)
+// Output: {"_id": "123", "count": "456"}
+```
+
+### Repair newline delimited JSON (NDJSON)
+
+```go
+result, _ := jsonrepair.JSONRepair(`{"id":1}
+{"id":2}`)
+// Output: [{"id":1},{"id":2}]
+```
+
+## Differences from TypeScript version
+
+This is a Go port of [josdejong/jsonrepair](https://github.com/josdejong/jsonrepair). The functionality is mostly identical, with the following known differences:
+
+| Feature | TypeScript | Go |
+|---------|------------|-----|
+| MongoDB Timestamp | ✅ Supported | ❌ Not supported |
+| Triple quotes `'''` | ✅ Repaired | ❌ Returns error |
+| Streaming API | ✅ Available | ❌ Not available |
+
+## Testing
 
 ```bash
 go test -v
 ```
 
-当前测试覆盖 78 个测试用例，全部通过。
+The test suite covers 78 test cases, all passing. The tests are aligned with the original TypeScript test suite.
 
-## 许可证
+## License
 
-ISC License
+Released under the [ISC license](https://opensource.org/licenses/ISC).
 
-本项目是 [jsonrepair](https://github.com/josdejong/jsonrepair) 的 Go 移植版本，原项目由 Jos de Jong 创建，采用 ISC 许可证。
+This project is a Go port of [jsonrepair](https://github.com/josdejong/jsonrepair), originally created by Jos de Jong.
 
-## 致谢
+## Acknowledgments
 
-- [Jos de Jong](https://github.com/josdejong) - 原始 jsonrepair TypeScript 项目的作者
+- [Jos de Jong](https://github.com/josdejong) - Author of the original jsonrepair TypeScript library
