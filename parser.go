@@ -820,9 +820,24 @@ func (p *Parser) parseUnquotedString(isKey bool) bool {
 			}
 
 			if j < len(p.text) && p.text[j] == '(' {
-				// Function call like NumberLong(2) or callback({})
+				// Function call like NumberLong(2) or Timestamp(1234, 1) or callback({})
 				p.i = j + 1
+
+				// Parse the first value
 				p.parseValue()
+
+				// Skip any additional arguments (e.g., Timestamp(1234, 1))
+				for p.i < len(p.text) && p.text[p.i] == ',' {
+					p.i++ // skip comma
+					// Save output BEFORE parsing whitespace to avoid trailing spaces
+					savedOutput := p.output.String()
+					p.parseWhitespaceAndSkipComments(true)
+					// Skip this value - we only keep the first one
+					p.parseValue()
+					// Restore output to discard this value and any whitespace before it
+					p.output.Reset()
+					p.output.WriteString(savedOutput)
+				}
 
 				if p.i < len(p.text) && p.text[p.i] == ')' {
 					p.i++

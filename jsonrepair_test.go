@@ -1450,19 +1450,19 @@ func TestRepairInvalidJSON(t *testing.T) {
 			t.Errorf("Expected %q, got %q", `{"date":"2012-12-19T06:01:17.171Z"}`, result)
 		}
 
-		// Note: Timestamp conversion to $timestamp object may not be implemented
+		// Note: Timestamp extracts the first argument (timestamp value) only
 		result, err := JSONRepair(`{"timestamp":Timestamp(123, 1)}`)
 		if err != nil {
-			t.Logf("Timestamp conversion not supported: %v", err)
-		} else if result != `{"timestamp":{"$timestamp":{"t":123,"i":1}}}` {
-			t.Logf("Timestamp repaired to: %q", result)
+			t.Errorf("Timestamp parsing failed: %v", err)
+		} else if result != `{"timestamp":123}` {
+			t.Errorf("Expected {\"timestamp\":123}, got %q", result)
 		}
 
 		result, err = JSONRepair(`{"timestamp": Timestamp(123, 1)}`)
 		if err != nil {
-			t.Logf("Timestamp conversion not supported: %v", err)
-		} else if result != `{"timestamp": {"$timestamp":{"t":123,"i":1}}}` {
-			t.Logf("Timestamp repaired to: %q", result)
+			t.Errorf("Timestamp parsing failed: %v", err)
+		} else if result != `{"timestamp": 123}` {
+			t.Errorf("Expected {\"timestamp\": 123}, got %q", result)
 		}
 
 		// Note: NumberLong with quoted value may keep it as string in Go implementation
