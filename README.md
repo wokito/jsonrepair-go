@@ -155,6 +155,10 @@ result, _ := jsonrepair.JSONRepair(`"hello" + " world"`)
 ```go
 result, _ := jsonrepair.JSONRepair(`{"_id": ObjectId("123"), "count": NumberLong("456")}`)
 // Output: {"_id": "123", "count": "456"}
+
+// Timestamp with multiple arguments - extracts the first argument
+result, _ = jsonrepair.JSONRepair(`{"ts": Timestamp(1234, 1)}`)
+// Output: {"ts": 1234}
 ```
 
 ### Repair newline delimited JSON (NDJSON)
@@ -171,7 +175,6 @@ This is a Go port of [josdejong/jsonrepair](https://github.com/josdejong/jsonrep
 
 | Feature | TypeScript | Go |
 |---------|------------|-----|
-| MongoDB Timestamp | ✅ Supported | ❌ Not supported |
 | Triple quotes `'''` | ✅ Repaired | ❌ Returns error |
 | Streaming API | ✅ Available | ❌ Not available |
 
