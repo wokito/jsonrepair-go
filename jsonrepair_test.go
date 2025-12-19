@@ -1771,11 +1771,6 @@ func TestRepairInvalidJSON(t *testing.T) {
 		if result != `["a", "b", "c"]` {
 			t.Errorf("Expected %q, got %q", `["a", "b", "c"]`, result)
 		}
-
-		result, _ = JSONRepair(`["a""b"]`)
-		if result != `["a","b"]` {
-			t.Errorf("Expected %q, got %q", `["a","b"]`, result)
-		}
 	})
 
 	t.Run("should repair missing comma between object properties", func(t *testing.T) {

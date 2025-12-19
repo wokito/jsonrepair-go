@@ -982,28 +982,6 @@ func (p *Parser) isUnescapedQuoteSuspicious(afterQuoteIndex int) bool {
 		return false
 	}
 
-	// Quote after quote - check if it's a missing comma case or unescaped quote
-	// If the second quote starts a new string that ends properly, it's missing comma
-	// If the second quote is followed by delimiter, it's an unescaped quote like "53""
-	if isQuote(charAfterQuote) {
-		// Check what's after the second quote
-		j := afterQuoteIndex + 1
-		for j < len(p.text) && isWhitespace(p.text, j) {
-			j++
-		}
-		if j >= len(p.text) {
-			// "..." - just end of text, this is suspicious (like "53"")
-			return true
-		}
-		afterSecondQuote, _ := getCharAt(p.text, j)
-		// If second quote is immediately followed by delimiter, this is likely "53"" case
-		if afterSecondQuote == '}' || afterSecondQuote == ']' || afterSecondQuote == ',' {
-			return true
-		}
-		// Otherwise it's likely a missing comma case like ["a""b"]
-		return false
-	}
-
 	// String concatenation operator - not suspicious
 	if charAfterQuote == '+' {
 		return false
