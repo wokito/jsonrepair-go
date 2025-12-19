@@ -80,11 +80,11 @@ func (p *Parser) parseValue() bool {
 // parseWhitespaceAndSkipComments parses whitespace and skips comments
 func (p *Parser) parseWhitespaceAndSkipComments(skipNewline bool) bool {
 	start := p.i
-	changed := p.parseWhitespace(skipNewline)
+	p.parseWhitespace(skipNewline)
 	for {
-		changed = p.parseComment()
+		changed := p.parseComment()
 		if changed {
-			changed = p.parseWhitespace(skipNewline)
+			p.parseWhitespace(skipNewline)
 		}
 		if !changed {
 			break
