@@ -528,6 +528,28 @@ func (p *Parser) parseString(stopAtDelimiter bool, stopAtIndex int) bool {
 			nextR, _ := getCharAt(p.text, p.i)
 			if stopAtDelimiter || p.i >= len(p.text) ||
 				isDelimiter(nextR) || isQuote(nextR) || isDigit(nextR) {
+				// The quote is followed by the end of the text, a delimiter,
+				// or a next value. So the quote is indeed the end of the string.
+
+				// Unified lookahead check for unescaped quotes (fixes #129, #144, #114, #151)
+				// Check if the quote is actually an unescaped quote inside the string
+				// by looking ahead to see if there's a "real" end quote followed by valid JSON delimiters
+				needsLookahead := p.isUnescapedQuoteSuspicious(iQuote + currentSize)
+
+				if needsLookahead {
+					validEndQuoteIndex := p.findNextValidEndQuote(iQuote + currentSize)
+					if validEndQuoteIndex != -1 {
+						// Found a valid end quote further ahead, so this quote is unescaped
+						// Remove the quote we wrote and write escaped quote instead
+						outputStr := p.output.String()
+						p.output.Reset()
+						p.output.WriteString(outputStr[:oQuote])
+						p.output.WriteString("\\\"")
+						p.i = iQuote + currentSize
+						continue
+					}
+				}
+
 				// Valid end quote
 				p.parseConcatenatedString()
 				return true
@@ -937,6 +959,158 @@ func (p *Parser) atEndOfNumber() bool {
 func (p *Parser) repairNumberEndingWithNumericSymbol(start int) {
 	p.output.WriteString(p.text[start:p.i])
 	p.output.WriteString("0")
+}
+
+// isUnescapedQuoteSuspicious checks if the character(s) after a quote position indicate
+// that the quote might be an unescaped quote inside the string content (suspicious),
+// rather than a valid end quote.
+// Returns true if the position is suspicious, false if it looks like a valid end quote.
+func (p *Parser) isUnescapedQuoteSuspicious(afterQuoteIndex int) bool {
+	if afterQuoteIndex >= len(p.text) {
+		return false // End of text - not suspicious
+	}
+
+	charAfterQuote, _ := getCharAt(p.text, afterQuoteIndex)
+
+	// End of text or whitespace followed by delimiter - not suspicious
+	if isWhitespace(p.text, afterQuoteIndex) {
+		return false
+	}
+
+	// Standard JSON delimiters after quote - not suspicious
+	if charAfterQuote == '}' || charAfterQuote == ']' || charAfterQuote == ':' {
+		return false
+	}
+
+	// Quote after quote - check if it's a missing comma case or unescaped quote
+	// If the second quote starts a new string that ends properly, it's missing comma
+	// If the second quote is followed by delimiter, it's an unescaped quote like "53""
+	if isQuote(charAfterQuote) {
+		// Check what's after the second quote
+		j := afterQuoteIndex + 1
+		for j < len(p.text) && isWhitespace(p.text, j) {
+			j++
+		}
+		if j >= len(p.text) {
+			// "..." - just end of text, this is suspicious (like "53"")
+			return true
+		}
+		afterSecondQuote, _ := getCharAt(p.text, j)
+		// If second quote is immediately followed by delimiter, this is likely "53"" case
+		if afterSecondQuote == '}' || afterSecondQuote == ']' || afterSecondQuote == ',' {
+			return true
+		}
+		// Otherwise it's likely a missing comma case like ["a""b"]
+		return false
+	}
+
+	// String concatenation operator - not suspicious
+	if charAfterQuote == '+' {
+		return false
+	}
+
+	// Comma case: need to check what comes after the comma
+	if charAfterQuote == ',' {
+		j := afterQuoteIndex + 1
+		// Skip whitespace after comma
+		for j < len(p.text) && isWhitespace(p.text, j) {
+			j++
+		}
+		if j >= len(p.text) {
+			return false
+		}
+		afterComma, _ := getCharAt(p.text, j)
+		// If followed by a valid JSON value start that's NOT an identifier, not suspicious
+		if afterComma == '}' || afterComma == ']' ||
+			isQuote(afterComma) || isDigit(afterComma) ||
+			afterComma == '-' || afterComma == '{' || afterComma == '[' {
+			return false
+		}
+		// Check for comments (/* or //)
+		if afterComma == '/' && j+1 < len(p.text) {
+			nextChar := p.text[j+1]
+			if nextChar == '*' || nextChar == '/' {
+				return false
+			}
+		}
+		// For identifiers, check if it's likely an unquoted key or string content
+		if isFunctionNameCharStart(afterComma) {
+			// Skip the identifier
+			k := j
+			for k < len(p.text) {
+				r, size := utf8.DecodeRuneInString(p.text[k:])
+				if isFunctionNameChar(r) {
+					k += size
+				} else {
+					break
+				}
+			}
+			// Skip whitespace after the identifier
+			for k < len(p.text) && isWhitespace(p.text, k) {
+				k++
+			}
+			// Check what comes after the identifier
+			if k < len(p.text) {
+				afterIdent, _ := getCharAt(p.text, k)
+				// If it's followed by ':', it's an unquoted key - not suspicious
+				if afterIdent == ':' {
+					return false
+				}
+				// If it's a quote followed by ':', it's an unquoted key with quote - not suspicious
+				if isQuote(afterIdent) {
+					m := k + 1
+					for m < len(p.text) && isWhitespace(p.text, m) {
+						m++
+					}
+					if m < len(p.text) && p.text[m] == ':' {
+						return false
+					}
+				}
+			}
+			// Otherwise, it's likely string content - suspicious
+			return true
+		}
+		// Comma followed by something else - suspicious
+		return true
+	}
+
+	// Any other character (letters, numbers, punctuation, etc.) - suspicious
+	return true
+}
+
+// findNextValidEndQuote looks ahead to find a valid end quote for a string value.
+// A valid end quote is a quote character followed by a valid JSON value delimiter
+// (closing brace, bracket, comma, or end of text).
+// Returns the index of the valid end quote, or -1 if not found.
+func (p *Parser) findNextValidEndQuote(startIndex int) int {
+	j := startIndex
+
+	// Search for the next quote that could be a valid end quote
+	for j < len(p.text) {
+		r, _ := getCharAt(p.text, j)
+		if isQuote(r) {
+			// Found a quote, check if it's followed by a valid JSON value delimiter
+			k := j + 1
+
+			// Skip whitespace after the quote
+			for k < len(p.text) && isWhitespace(p.text, k) {
+				k++
+			}
+
+			// Check if what follows is a valid JSON structure continuation for a value
+			// Note: we exclude ':' because that would indicate this is a key quote, not a value quote
+			if k >= len(p.text) {
+				return j // End of text - this is a valid end quote
+			}
+			afterQuote, _ := getCharAt(p.text, k)
+			if afterQuote == '}' || afterQuote == ']' || afterQuote == ',' {
+				return j // This is a valid end quote for a value
+			}
+		}
+		j++
+	}
+
+	return -1 // No valid end quote found
 }
 
 // Error methods

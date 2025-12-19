@@ -888,6 +888,89 @@ func TestRepairInvalidJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("should escape unescaped double quotes in strings (issues #129, #144, #114, #151)", func(t *testing.T) {
+		// Issue #144 - quotes followed by parentheses or another quote
+		result, _ := JSONRepair(`{ "height": "53"" }`)
+		if result != `{ "height": "53\"" }` {
+			t.Errorf("Expected %q, got %q", `{ "height": "53\"" }`, result)
+		}
+
+		result, _ = JSONRepair(`{ "height": "(5'3")" }`)
+		if result != `{ "height": "(5'3\")" }` {
+			t.Errorf("Expected %q, got %q", `{ "height": "(5'3\")" }`, result)
+		}
+
+		result, _ = JSONRepair(`{"a": "test")" }`)
+		if result != `{"a": "test\")" }` {
+			t.Errorf("Expected %q, got %q", `{"a": "test\")" }`, result)
+		}
+
+		result, _ = JSONRepair(`{"value": "foo(bar")"}`)
+		if result != `{"value": "foo(bar\")"}` {
+			t.Errorf("Expected %q, got %q", `{"value": "foo(bar\")"}`, result)
+		}
+
+		// Issue #129 - quotes followed by comma
+		result, _ = JSONRepair(`{"a": "x "y", z"}`)
+		if result != `{"a": "x \"y\", z"}` {
+			t.Errorf("Expected %q, got %q", `{"a": "x \"y\", z"}`, result)
+		}
+
+		result, _ = JSONRepair(`{"key": "become an "Airbnb-free zone", which is a political decision."}`)
+		if result != `{"key": "become an \"Airbnb-free zone\", which is a political decision."}` {
+			t.Errorf("Expected %q, got %q", `{"key": "become an \"Airbnb-free zone\", which is a political decision."}`, result)
+		}
+
+		result, _ = JSONRepair(`{"key": "test "quoted", more text"}`)
+		if result != `{"key": "test \"quoted\", more text"}` {
+			t.Errorf("Expected %q, got %q", `{"key": "test \"quoted\", more text"}`, result)
+		}
+
+		// Issue #114 - unescaped quotes in measurement units like 65"
+		result, _ = JSONRepair(`{"text": "I want to buy 65" television"}`)
+		if result != `{"text": "I want to buy 65\" television"}` {
+			t.Errorf("Expected %q, got %q", `{"text": "I want to buy 65\" television"}`, result)
+		}
+
+		result, _ = JSONRepair(`{"text": "a 40" TV"}`)
+		if result != `{"text": "a 40\" TV"}` {
+			t.Errorf("Expected %q, got %q", `{"text": "a 40\" TV"}`, result)
+		}
+
+		result, _ = JSONRepair(`{"size": "12" x 15""}`)
+		if result != `{"size": "12\" x 15\""}` {
+			t.Errorf("Expected %q, got %q", `{"size": "12\" x 15\""}`, result)
+		}
+
+		// Issue #151 - quotes followed by slash
+		result, _ = JSONRepair(`{"value": "This is test "message/stream"}`)
+		if result != `{"value": "This is test \"message/stream"}` {
+			t.Errorf("Expected %q, got %q", `{"value": "This is test \"message/stream"}`, result)
+		}
+
+		result, _ = JSONRepair(`{"name":"Parth","value":"This is test "message/stream"}`)
+		if result != `{"name":"Parth","value":"This is test \"message/stream"}` {
+			t.Errorf("Expected %q, got %q", `{"name":"Parth","value":"This is test \"message/stream"}`, result)
+		}
+
+		result, _ = JSONRepair(`{"path": "home/user"test/file"}`)
+		if result != `{"path": "home/user\"test/file"}` {
+			t.Errorf("Expected %q, got %q", `{"path": "home/user\"test/file"}`, result)
+		}
+
+		// Quotes followed by letters (general case)
+		result, _ = JSONRepair(`{"text": "hello "world today"}`)
+		if result != `{"text": "hello \"world today"}` {
+			t.Errorf("Expected %q, got %q", `{"text": "hello \"world today"}`, result)
+		}
+
+		// Ensure normal cases still work
+		result, _ = JSONRepair(`{"a": "x","b": "y"}`)
+		if result != `{"a": "x","b": "y"}` {
+			t.Errorf("Expected %q, got %q", `{"a": "x","b": "y"}`, result)
+		}
+	})
+
 	t.Run("should replace special white space characters", func(t *testing.T) {
 		result, _ := JSONRepair("{\"a\":\u00a0\"foo\u00a0bar\"}")
 		if result != "{\"a\": \"foo\u00a0bar\"}" {
